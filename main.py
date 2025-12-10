@@ -774,5 +774,25 @@ async def handle_unknown(message: Message):
 async def main():
     logger.info("=" * 50)
     logger.info("🎁 ЗАПУСК NFT GIFT OWNERS PARSER v3.0")
-python -m py_compile main.py
-    logger.info(f"🤖 Токен
+    logger.info(f"🤖 Токен бота: {'✅' if BOT_TOKEN else '❌'}")
+    logger.info(f"📦 Коллекций NFT Gifts: {len(NFT_GIFT_COLLECTIONS)}")
+    logger.info("=" * 50)
+    
+    try:
+        # Очистка вебхуков
+        await bot.delete_webhook(drop_pending_updates=True)
+        
+        # Проверка бота
+        me = await bot.get_me()
+        logger.info(f"✅ Бот запущен: @{me.username}")
+        
+        # Запуск
+        logger.info("🚀 Запускаю парсер NFT Gifts...")
+        await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
+        
+    except Exception as e:
+        logger.error(f"❌ ОШИБКА: {e}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    asyncio.run(main())
