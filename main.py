@@ -16,6 +16,8 @@ from aiogram.types import (
     FSInputFile
 )
 from aiogram.enums import ParseMode
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+from aiohttp import web
 
 # Настройка логирования
 logging.basicConfig(
@@ -854,22 +856,44 @@ async def handle_unknown(message: Message):
         reply_markup=get_main_keyboard()
     )
 
-# 🚀 ЗАПУСК БОТА
-async def main():
-    logger.info("=" * 50)
-    logger.info("🎁 ЗАПУСК NFT GIFT LINK GENERATOR")
-    logger.info(f"🤖 Токен: {BOT_TOKEN[:10]}...")
-    logger.info(f"📦 Коллекций: {len(NFT_GIFT_COLLECTIONS)}")
-    logger.info("=" * 50)
-    
+# 🚀 ЗАПУСК БОТА НА Render
+async def on_startup(bot: Bot):
+    """Функция, которая выполняется при старте бота"""
     try:
         await bot.delete_webhook(drop_pending_updates=True)
         me = await bot.get_me()
         logger.info(f"✅ Бот запущен: @{me.username}")
-        await dp.start_polling(bot)
     except Exception as e:
-        logger.error(f"❌ ОШИБКА: {e}")
-        sys.exit(1)
+        logger.error(f"❌ Ошибка при запуске бота: {e}")
+
+# Настройка веб-сервера для Render
+def main():
+    # Получаем порт из переменной окружения Render (по умолчанию 10000)
+    port = int(os.environ.get("PORT", 10000))
+    
+    # Регистрируем функцию on_startup
+    dp.startup.register(on_startup)
+    
+    # Создаем веб-приложение aiohttp
+    app = web.Application()
+    
+    # Создаем обработчик вебхуков для Telegram
+    webhook_handler = SimpleRequestHandler(
+        dispatcher=dp,
+        bot=bot,
+    )
+    
+    # Регистрируем маршрут для вебхука
+    # Все обновления от Telegram будут приходить на /webhook
+    webhook_handler.register(app, path="/webhook")
+    
+    # Настраиваем приложение aiogram
+    setup_application(app, dp, bot=bot)
+    
+    # Запускаем веб-сервер
+    # Важно: слушаем на 0.0.0.0 чтобы принимать запросы извне
+    logger.info(f"🚀 Запускаю веб-сервер на порту {port}")
+    web.run_app(app, host="0.0.0.0", port=port)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
