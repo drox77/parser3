@@ -774,4 +774,5 @@ async def handle_unknown(message: Message):
 async def main():
     logger.info("=" * 50)
     logger.info("🎁 ЗАПУСК NFT GIFT OWNERS PARSER v3.0")
+python -m py_compile main.py
     logger.info(f"🤖 Токен
