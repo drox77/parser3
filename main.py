@@ -25,11 +25,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # 🔑 ТОКЕН БОТА
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-if not BOT_TOKEN:
-    BOT_TOKEN = "8235636216:AAG0NW9iCOMtL1Di5Uik4zK0hPdB-y24yg0"
+BOT_TOKEN = "8265374266:AAGLfYdq1sJg_PPBQAngW84E6u5BCgj3_BY"
 
-BOT_TOKEN = BOT_TOKEN.strip()
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
 
@@ -272,37 +269,16 @@ class NFTLinkGenerator:
         max_num = collection["max_number"]
         
         # Генерируем случайные номера
-        numbers = random.sample(range(1, max_num + 1), min(count, max_num))
+        if max_num < count:
+            count = max_num
+        
+        numbers = random.sample(range(1, max_num + 1), count)
         
         for number in numbers:
             link = f"{collection['base_url']}{number}"
             links.append(link)
         
         return links
-    
-    @staticmethod
-    def generate_multiple_collections(collections: List[str], count_per_collection: int = 10) -> Dict[str, List[str]]:
-        """Генерирует ссылки для нескольких коллекций"""
-        results = {}
-        
-        for coll_id in collections:
-            if coll_id in NFT_GIFT_COLLECTIONS:
-                links = NFTLinkGenerator.generate_nft_links(coll_id, count_per_collection)
-                results[coll_id] = links
-        
-        return results
-    
-    @staticmethod
-    def get_collection_info(collection_id: str) -> Dict:
-        """Получить информацию о коллекции"""
-        collection = NFT_GIFT_COLLECTIONS.get(collection_id, {})
-        return {
-            "name": collection.get("name", "Unknown"),
-            "description": collection.get("description", ""),
-            "total_nft": collection.get("max_number", 0),
-            "base_url": collection.get("base_url", ""),
-            "sample_links": NFTLinkGenerator.generate_nft_links(collection_id, 3)
-        }
 
 # 🤖 ОБРАБОТЧИКИ БОТА
 @dp.message(Command("start"))
@@ -757,15 +733,8 @@ async def on_save_links(callback: CallbackQuery):
 
 @dp.callback_query(F.data == "save_all_links")
 async def on_save_all_links(callback: CallbackQuery):
-    # Сохраняем последнюю массовую генерацию
-    last_mass = None
-    for record in reversed(generation_history):
-        if record.get('type') == 'mass_generation':
-            last_mass = record
-            break
-    
-    if not last_mass:
-        await callback.answer("❌ Нет данных массовой генерации")
+    if not selected_collections:
+        await callback.answer("❌ Не выбрано коллекций")
         return
     
     # Генерируем ссылки заново
@@ -835,6 +804,8 @@ async def on_clear_history(callback: CallbackQuery):
 
 @dp.callback_query(F.data == "info")
 async def on_info(callback: CallbackQuery):
+    total_nfts = sum(c['max_number'] for c in NFT_GIFT_COLLECTIONS.values())
+    
     info_text = (
         "ℹ️ <b>ИНФОРМАЦИЯ О БОТЕ</b>\n\n"
         "🎁 <b>NFT GIFT LINK GENERATOR</b>\n\n"
@@ -845,14 +816,14 @@ async def on_info(callback: CallbackQuery):
         "• Сохраняет историю генерации\n\n"
         "📊 <b>Статистика:</b>\n"
         f"• Коллекций: {len(NFT_GIFT_COLLECTIONS)}\n"
-        f"• NFT всего: {sum(c['max_number'] for c in NFT_GIFT_COLLECTIONS.values()):,}\n"
+        f"• NFT всего: {total_nfts:,}\n"
         f"• История: {len(generation_history)} записей\n"
         f"• Выбрано: {len(selected_collections)} коллекций\n\n"
         "💡 <b>Как использовать:</b>\n"
         "1. Выберите коллекцию\n"
         "2. Нажмите 'Сгенерировать ссылки'\n"
         "3. Откройте ссылку в Telegram\n"
-        "4. Посмотрите владельца NFT\n\n"
+        "4. Посмотрите информацию о NFT\n\n"
         "<i>Все ссылки рабочие и ведут на реальные NFT</i>"
     )
     
