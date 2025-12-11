@@ -16,7 +16,6 @@ from aiogram.types import (
     FSInputFile
 )
 from aiogram.enums import ParseMode
-from aiohttp import web
 
 # Настройка логирования
 logging.basicConfig(
@@ -27,12 +26,6 @@ logger = logging.getLogger(__name__)
 
 # 🔑 ТОКЕН БОТА
 BOT_TOKEN = "8265374266:AAGLfYdq1sJg_PPBQAngW84E6u5BCgj3_BY"
-
-# Настройки для Render
-WEBHOOK_HOST = os.environ.get('RENDER_EXTERNAL_HOSTNAME', '')
-WEBHOOK_PATH = f"/webhook/{BOT_TOKEN}"
-WEBHOOK_URL = f"https://{WEBHOOK_HOST}{WEBHOOK_PATH}" if WEBHOOK_HOST else None
-PORT = int(os.environ.get("PORT", 8080))
 
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
@@ -223,6 +216,8 @@ NFT_GIFT_COLLECTIONS = {
 
 # История генерации
 generation_history = []
+
+# Выбранные коллекции
 selected_collections = set()
 
 # 🎨 КНОПКИ
@@ -273,6 +268,7 @@ class NFTLinkGenerator:
         links = []
         max_num = collection["max_number"]
         
+        # Генерируем случайные номера
         if max_num < count:
             count = max_num
         
@@ -316,6 +312,7 @@ async def on_collection_selected(callback: CallbackQuery):
         await callback.answer("❌ Коллекция не найдена")
         return
     
+    # Генерируем пример ссылок
     generator = NFTLinkGenerator()
     sample_links = generator.generate_nft_links(collection_id, 5)
     
@@ -352,6 +349,7 @@ async def on_generate_collection(callback: CallbackQuery):
         f"⏳ Ожидайте 3-5 секунд...",
     )
     
+    # Генерируем ссылки
     generator = NFTLinkGenerator()
     links = generator.generate_nft_links(collection_id, 20)
     
@@ -364,6 +362,7 @@ async def on_generate_collection(callback: CallbackQuery):
         )
         return
     
+    # Форматируем ссылки
     links_formatted = []
     for i, link in enumerate(links, 1):
         nft_id = link.split('-')[-1]
@@ -371,10 +370,11 @@ async def on_generate_collection(callback: CallbackQuery):
     
     links_text = "\n".join(links_formatted)
     
+    # Сохраняем в историю
     generation_history.append({
         "collection": collection["name"],
         "count": len(links),
-        "links": links[:5],
+        "links": links[:5],  # Сохраняем только первые 5
         "timestamp": time.time()
     })
     
@@ -409,6 +409,7 @@ async def on_select_single(callback: CallbackQuery):
     collection = NFT_GIFT_COLLECTIONS[collection_id]
     await callback.answer(f"✅ {collection['name']} {action} в выбор")
     
+    # Возвращаемся к списку коллекций
     await callback.message.edit_text(
         "🔗 <b>ГЕНЕРАЦИЯ ССЫЛОК НА NFT GIFTS</b>\n\n"
         f"✅ Выбрано: {len(selected_collections)}/30 коллекций\n"
@@ -481,8 +482,11 @@ async def on_start_mass_generation(callback: CallbackQuery):
     
     for idx, coll_id in enumerate(selected_collections, 1):
         collection = NFT_GIFT_COLLECTIONS[coll_id]
+        
+        # Генерируем по 10 ссылок на коллекцию
         links = generator.generate_nft_links(coll_id, 10)
         
+        # Добавляем информацию о коллекции
         for link in links:
             nft_id = link.split('-')[-1]
             all_links.append({
@@ -491,6 +495,7 @@ async def on_start_mass_generation(callback: CallbackQuery):
                 "nft_id": nft_id
             })
         
+        # Обновляем статус
         status_text = (
             f"📊 <b>ГЕНЕРАЦИЯ {idx}/{len(selected_collections)}</b>\n\n"
             f"🎁 Коллекция: {collection['name']}\n"
@@ -503,11 +508,13 @@ async def on_start_mass_generation(callback: CallbackQuery):
             await callback.message.edit_text(status_text)
             await asyncio.sleep(0.5)
     
+    # Перемешиваем ссылки
     random.shuffle(all_links)
     
+    # Формируем результат
     if all_links:
         links_text = ""
-        for i, link_data in enumerate(all_links[:30], 1):
+        for i, link_data in enumerate(all_links[:30], 1):  # Показываем первые 30
             links_text += f"{i:2d}. <a href='{link_data['url']}'>{link_data['collection']} #{link_data['nft_id']}</a>\n"
         
         result_text = (
@@ -521,6 +528,7 @@ async def on_start_mass_generation(callback: CallbackQuery):
         if len(all_links) > 30:
             result_text += f"\n\n... и ещё {len(all_links) - 30} ссылок"
         
+        # Сохраняем в историю
         generation_history.append({
             "type": "mass_generation",
             "collections_count": len(selected_collections),
@@ -546,6 +554,7 @@ async def on_start_mass_generation(callback: CallbackQuery):
 
 @dp.callback_query(F.data == "quick_generate")
 async def on_quick_generate(callback: CallbackQuery):
+    # Выбираем 5 случайных коллекций для быстрой генерации
     quick_collections = random.sample(list(NFT_GIFT_COLLECTIONS.keys()), 5)
     
     quick_text = "<b>⚡ БЫСТРАЯ ГЕНЕРАЦИЯ</b>\n\n"
@@ -677,6 +686,7 @@ async def on_save_history(callback: CallbackQuery):
 async def on_save_links(callback: CallbackQuery):
     collection_id = callback.data.replace("save_", "")
     
+    # Ищем последнюю генерацию для этой коллекции
     links_to_save = []
     collection_name = ""
     
@@ -727,6 +737,7 @@ async def on_save_all_links(callback: CallbackQuery):
         await callback.answer("❌ Не выбрано коллекций")
         return
     
+    # Генерируем ссылки заново
     generator = NFTLinkGenerator()
     all_links_data = []
     
@@ -843,107 +854,61 @@ async def handle_unknown(message: Message):
         reply_markup=get_main_keyboard()
     )
 
-# 🚀 ВЕБ-СЕРВЕР ДЛЯ RENDER
-async def health_check(request: web.Request):
-    """Эндпоинт для проверки работоспособности"""
-    return web.Response(text="OK", status=200)
-
-async def ping_handler(request: web.Request):
-    """Эндпоинт для UptimeRobot"""
-    return web.json_response({
-        "status": "ok",
-        "bot": "NFT Gift Link Generator",
-        "timestamp": time.time(),
-        "collections": len(NFT_GIFT_COLLECTIONS)
-    })
-
-async def home_page(request: web.Request):
-    """Главная страница"""
-    html = """
-    <html>
-        <head>
-            <title>🎁 NFT Gift Bot</title>
-            <meta charset="UTF-8">
-            <style>
-                body {
-                    font-family: Arial, sans-serif;
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    color: white;
-                    text-align: center;
-                    padding: 50px;
-                    margin: 0;
-                }
-                .container {
-                    max-width: 600px;
-                    margin: 0 auto;
-                    background: rgba(255, 255, 255, 0.1);
-                    padding: 30px;
-                    border-radius: 20px;
-                    backdrop-filter: blur(10px);
-                }
-                h1 {
-                    font-size: 2.5em;
-                    margin-bottom: 20px;
-                }
-                .status {
-                    background: rgba(0, 255, 0, 0.2);
-                    padding: 15px;
-                    border-radius: 10px;
-                    margin: 20px 0;
-                    font-size: 1.2em;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h1>🎁 NFT Gift Link Generator</h1>
-                <div class="status">✅ Бот активен и работает!</div>
-                <p>Бот работает на Render + UptimeRobot</p>
-                <p>Пинг: <a href="/ping" style="color: #fff;">/ping</a></p>
-                <p>Проверка: <a href="/health" style="color: #fff;">/health</a></p>
-            </div>
-        </body>
-    </html>
-    """
-    return web.Response(text=html, content_type='text/html')
-
-async def on_startup():
-    """Запуск бота при старте"""
-    logger.info("🚀 Запуск NFT Gift Bot на Render")
-    logger.info(f"🌐 Порт: {PORT}")
+# 🚀 ЗАПУСК БОТА (Simple Polling Version)
+async def main():
+    logger.info("=" * 50)
+    logger.info("🎁 ЗАПУСК NFT GIFT LINK GENERATOR")
     logger.info(f"🤖 Токен: {BOT_TOKEN[:10]}...")
+    logger.info(f"📦 Коллекций: {len(NFT_GIFT_COLLECTIONS)}")
+    logger.info("=" * 50)
     
-    if WEBHOOK_HOST and WEBHOOK_URL:
-        try:
-            await bot.set_webhook(
-                url=WEBHOOK_URL,
-                drop_pending_updates=True
-            )
-            logger.info(f"✅ Вебхук установлен: {WEBHOOK_URL}")
-        except Exception as e:
-            logger.error(f"❌ Ошибка вебхука: {e}")
-            logger.info("🔄 Запуск в режиме polling")
-            asyncio.create_task(dp.start_polling(bot))
-    else:
-        logger.info("🔄 Запуск в режиме polling")
-        asyncio.create_task(dp.start_polling(bot))
-
-# 🚀 ГЛАВНАЯ ФУНКЦИЯ
-def main():
-    """Запуск приложения"""
-    app = web.Application()
-    
-    # Статические эндпоинты для проверки
-    app.router.add_get('/', home_page)
-    app.router.add_get('/health', health_check)
-    app.router.add_get('/ping', ping_handler)
-    
-    # Запускаем бота при старте
-    app.on_startup.append(lambda app: on_startup())
-    
-    # Запускаем веб-сервер
-    logger.info(f"🌍 Запуск веб-сервера на 0.0.0.0:{PORT}")
-    web.run_app(app, host='0.0.0.0', port=PORT)
+    try:
+        # Просто запускаем бота в режиме polling
+        await bot.delete_webhook(drop_pending_updates=True)
+        me = await bot.get_me()
+        logger.info(f"✅ Бот запущен: @{me.username}")
+        
+        # Проверяем, есть ли порт от Render
+        port = os.environ.get("PORT")
+        if port:
+            logger.info(f"🌐 Render порт: {port}")
+            
+            # Добавляем простой HTTP-сервер для поддержания порта открытым
+            import threading
+            from http.server import HTTPServer, BaseHTTPRequestHandler
+            
+            class SimpleHandler(BaseHTTPRequestHandler):
+                def do_GET(self):
+                    self.send_response(200)
+                    self.send_header('Content-type', 'text/html')
+                    self.end_headers()
+                    self.wfile.write(b'<h1>NFT Gift Bot is running!</h1><p>Bot is active</p>')
+                
+                def log_message(self, format, *args):
+                    # Отключаем стандартное логирование HTTP запросов
+                    pass
+            
+            def run_http_server():
+                try:
+                    server = HTTPServer(('0.0.0.0', int(port)), SimpleHandler)
+                    logger.info(f"🌐 HTTP сервер запущен на порту {port}")
+                    server.serve_forever()
+                except Exception as e:
+                    logger.error(f"❌ Ошибка HTTP сервера: {e}")
+            
+            # Запускаем HTTP сервер в отдельном потоке
+            http_thread = threading.Thread(target=run_http_server, daemon=True)
+            http_thread.start()
+        
+        logger.info("🔄 Запускаю polling бота...")
+        
+        # Запускаем бота
+        await dp.start_polling(bot, skip_updates=True)
+        
+    except Exception as e:
+        logger.error(f"❌ ОШИБКА: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
+
