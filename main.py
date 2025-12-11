@@ -16,8 +16,6 @@ from aiogram.types import (
     FSInputFile
 )
 from aiogram.enums import ParseMode
-from aiohttp import web
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
 # Настройка логирования
 logging.basicConfig(
@@ -27,7 +25,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # 🔑 ТОКЕН БОТА
-BOT_TOKEN = "8593862563:AAFrOFkn0l14fD-QDVSh54DS3mRapIhDI7Y"
+BOT_TOKEN = "8265374266:AAGLfYdq1sJg_PPBQAngW84E6u5BCgj3_BY"
 
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
@@ -856,46 +854,61 @@ async def handle_unknown(message: Message):
         reply_markup=get_main_keyboard()
     )
 
-# 🚀 ЗАПУСК БОТА НА RENDER С WEBHOOK
-async def on_startup(bot: Bot):
-    """Функция запуска бота"""
-    # Удаляем старые вебхуки перед запуском
-    await bot.delete_webhook(drop_pending_updates=True)
-    logger.info("✅ Бот запущен и готов к работе")
-    
-    # Получаем информацию о боте
-    me = await bot.get_me()
-    logger.info(f"🤖 Бот: @{me.username}")
-    logger.info(f"🎁 Коллекций: {len(NFT_GIFT_COLLECTIONS)}")
+# 🚀 ЗАПУСК БОТА (Simple Polling Version)
+async def main():
     logger.info("=" * 50)
-
-def main():
-    # Получаем порт из переменной окружения Render
-    port = int(os.environ.get("PORT", 8080))
-    logger.info(f"🚀 Запуск веб-сервера на порту {port}")
+    logger.info("🎁 ЗАПУСК NFT GIFT LINK GENERATOR")
+    logger.info(f"🤖 Токен: {BOT_TOKEN[:10]}...")
+    logger.info(f"📦 Коллекций: {len(NFT_GIFT_COLLECTIONS)}")
+    logger.info("=" * 50)
     
-    # Создаем веб-приложение
-    app = web.Application()
-    
-    # Создаем обработчик вебхуков
-    webhook_handler = SimpleRequestHandler(
-        dispatcher=dp,
-        bot=bot,
-    )
-    
-    # Регистрируем обработчик вебхуков
-    # Telegram будет отправлять обновления на /webhook
-    webhook_handler.register(app, path="/webhook")
-    
-    # Настраиваем приложение aiogram
-    setup_application(app, dp, bot=bot)
-    
-    # Регистрируем функцию запуска
-    dp.startup.register(on_startup)
-    
-    # Запускаем веб-сервер
-    # Важно: слушаем на 0.0.0.0, а не localhost
-    web.run_app(app, host="0.0.0.0", port=port)
+    try:
+        # Просто запускаем бота в режиме polling
+        await bot.delete_webhook(drop_pending_updates=True)
+        me = await bot.get_me()
+        logger.info(f"✅ Бот запущен: @{me.username}")
+        
+        # Проверяем, есть ли порт от Render
+        port = os.environ.get("PORT")
+        if port:
+            logger.info(f"🌐 Render порт: {port}")
+            
+            # Добавляем простой HTTP-сервер для поддержания порта открытым
+            import threading
+            from http.server import HTTPServer, BaseHTTPRequestHandler
+            
+            class SimpleHandler(BaseHTTPRequestHandler):
+                def do_GET(self):
+                    self.send_response(200)
+                    self.send_header('Content-type', 'text/html')
+                    self.end_headers()
+                    self.wfile.write(b'<h1>✅ NFT Gift Bot is running!</h1>')
+                    self.wfile.write(b'<p>Bot is active and responding to Telegram messages.</p>')
+                
+                def log_message(self, format, *args):
+                    # Отключаем стандартное логирование HTTP запросов
+                    pass
+            
+            def run_http_server():
+                try:
+                    server = HTTPServer(('0.0.0.0', int(port)), SimpleHandler)
+                    logger.info(f"🌐 HTTP сервер запущен на порту {port}")
+                    server.serve_forever()
+                except Exception as e:
+                    logger.error(f"❌ Ошибка HTTP сервера: {e}")
+            
+            # Запускаем HTTP сервер в отдельном потоке
+            http_thread = threading.Thread(target=run_http_server, daemon=True)
+            http_thread.start()
+        
+        logger.info("🔄 Запускаю polling бота...")
+        
+        # Запускаем бота
+        await dp.start_polling(bot, skip_updates=True)
+        
+    except Exception as e:
+        logger.error(f"❌ ОШИБКА: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
