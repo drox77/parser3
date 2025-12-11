@@ -882,8 +882,7 @@ async def main():
                     self.send_response(200)
                     self.send_header('Content-type', 'text/html')
                     self.end_headers()
-                    self.wfile.write(b'<h1>✅ NFT Gift Bot is running!</h1>')
-                    self.wfile.write(b'<p>Bot is active and responding to Telegram messages.</p>')
+                    self.wfile.write(b'<h1>NFT Gift Bot is running!</h1><p>Bot is active</p>')
                 
                 def log_message(self, format, *args):
                     # Отключаем стандартное логирование HTTP запросов
